@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+import csv
+import sys
+import tty
+import termios
+
+
+def read_key():
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = sys.stdin.read(1)
+        if ch == "\x1b":
+            ch += sys.stdin.read(2)
+        return ch
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def select_column(headers):
+    selected = 0
+
+    def render():
+        # move cursor up to redraw (except first render)
+        sys.stdout.write(f"\x1b[2J\x1b[H")  # clear screen, cursor to top
+        print("Select a column (↑/↓ to move, Enter to confirm):\n")
+        for i, h in enumerate(headers):
+            if i == selected:
+                print(f"  \x1b[7m > {h} \x1b[0m")
+            else:
+                print(f"    {h}")
+        sys.stdout.flush()
+
+    render()
+    while True:
+        key = read_key()
+        if key == "\x1b[A":  # up
+            selected = (selected - 1) % len(headers)
+            render()
+        elif key == "\x1b[B":  # down
+            selected = (selected + 1) % len(headers)
+            render()
+        elif key in ("\r", "\n"):  # enter
+            sys.stdout.write("\x1b[2J\x1b[H")  # clear screen
+            sys.stdout.flush()
+            return selected
+        elif key in ("\x03", "\x1b"):  # ctrl-c or escape
+            sys.stdout.write("\x1b[2J\x1b[H")
+            sys.stdout.flush()
+            print("Cancelled.")
+            sys.exit(0)
+
+
+def main():
+    if len(sys.argv) != 2:
+        print(f"Usage: uvalues <path-to-csv>")
+        sys.exit(1)
+
+    path = sys.argv[1]
+
+    try:
+        with open(path, newline="") as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+            rows = list(reader)
+    except FileNotFoundError:
+        print(f"Error: file not found: {path}")
+        sys.exit(1)
+    except StopIteration:
+        print("Error: CSV file is empty")
+        sys.exit(1)
+
+    col = select_column(headers)
+    selected = headers[col]
+    unique = sorted(set(row[col] for row in rows if col < len(row)))
+
+    print(f"Unique values in '{selected}' ({len(unique)}):\n")
+    for v in unique:
+        print(f"  {v}")
+
+
+if __name__ == "__main__":
+    main()

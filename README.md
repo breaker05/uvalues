@@ -7,7 +7,7 @@ A CLI tool that extracts unique values from a column in a CSV file. Navigate hea
 1. Clone the repo:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/uniquevalues.git
+git clone https://github.com/breaker05/uniquevalues.git
 cd uniquevalues
 ```
 

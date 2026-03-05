@@ -18,33 +18,42 @@ def read_key():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
-def select_column(headers):
-    selected = 0
+def select_columns(headers):
+    cursor = 0
+    selected = set()
 
     def render():
-        # move cursor up to redraw (except first render)
         sys.stdout.write(f"\x1b[2J\x1b[H")  # clear screen, cursor to top
-        print("Select a column (↑/↓ to move, Enter to confirm):\n")
+        print("Select columns (↑/↓ move, Space toggle, Enter confirm):\n")
         for i, h in enumerate(headers):
-            if i == selected:
-                print(f"  \x1b[7m > {h} \x1b[0m")
+            check = "●" if i in selected else "○"
+            if i == cursor:
+                print(f"  \x1b[7m {check} {h} \x1b[0m")
             else:
-                print(f"    {h}")
+                print(f"   {check} {h}")
         sys.stdout.flush()
 
     render()
     while True:
         key = read_key()
         if key == "\x1b[A":  # up
-            selected = (selected - 1) % len(headers)
+            cursor = (cursor - 1) % len(headers)
             render()
         elif key == "\x1b[B":  # down
-            selected = (selected + 1) % len(headers)
+            cursor = (cursor + 1) % len(headers)
+            render()
+        elif key == " ":  # space to toggle
+            if cursor in selected:
+                selected.discard(cursor)
+            else:
+                selected.add(cursor)
             render()
         elif key in ("\r", "\n"):  # enter
             sys.stdout.write("\x1b[2J\x1b[H")  # clear screen
             sys.stdout.flush()
-            return selected
+            if not selected:
+                selected.add(cursor)
+            return sorted(selected)
         elif key in ("\x03", "\x1b"):  # ctrl-c or escape
             sys.stdout.write("\x1b[2J\x1b[H")
             sys.stdout.flush()
@@ -52,32 +61,50 @@ def select_column(headers):
             sys.exit(0)
 
 
+def sniff_delimiter(path):
+    with open(path, newline="") as f:
+        first_line = f.readline()
+        sample = first_line + f.read(8192)
+    # check header line for tabs first — sniffer can be fooled by commas in data
+    if "\t" in first_line:
+        return "\t"
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",\t")
+        return dialect.delimiter
+    except csv.Error:
+        return ","
+
+
 def main():
     if len(sys.argv) != 2:
-        print(f"Usage: uvalues <path-to-csv>")
+        print(f"Usage: uvalues <path-to-csv-or-tsv>")
         sys.exit(1)
 
     path = sys.argv[1]
 
     try:
+        delimiter = sniff_delimiter(path)
         with open(path, newline="") as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter=delimiter)
             headers = next(reader)
             rows = list(reader)
     except FileNotFoundError:
         print(f"Error: file not found: {path}")
         sys.exit(1)
     except StopIteration:
-        print("Error: CSV file is empty")
+        print("Error: file is empty")
         sys.exit(1)
 
-    col = select_column(headers)
-    selected = headers[col]
-    unique = sorted(set(row[col] for row in rows if col < len(row)))
+    cols = select_columns(headers)
 
-    print(f"Unique values in '{selected}' ({len(unique)}):\n")
-    for v in unique:
-        print(f"  {v}")
+    for col in cols:
+        col_name = headers[col]
+        unique = sorted(set(row[col] for row in rows if col < len(row)))
+        print(f"Unique values in '{col_name}' ({len(unique)}):\n")
+        for v in unique:
+            print(f"  {v}")
+        if col != cols[-1]:
+            print()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # uvalues
 
-A CLI tool that extracts unique values from a column in a CSV file. Navigate headers with arrow keys and get a sorted list of every distinct value in the selected column.
+A CLI tool that extracts unique values from a column in a CSV or TSV file. Navigate headers with arrow keys and get a sorted list of every distinct value in the selected column.
 
 ## Installation
 
@@ -41,7 +41,7 @@ source ~/.zshrc
 From any directory, run:
 
 ```bash
-uvalues <file.csv>
+uvalues <file.csv|file.tsv>
 ```
 
 1. An interactive selector appears with all column headers
